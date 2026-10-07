@@ -5,13 +5,13 @@
   "trailingSlash": false,
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "(.*)",
       "destination": "index.html"
     }
   ],
   "headers": [
     {
-      "source": "/(.*)",
+      "source": "(.*)",
       "headers": [
         {
           "key": "X-Content-Type-Options",
