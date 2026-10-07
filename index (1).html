@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AulaUnida · Plataforma de aprendizaje colaborativo · INCOA</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#1f2a44;--chalk:#f6f4ee;--pencil:#f2b705;--tarea:#2f6fed;--examen:#d64545;--proyecto:#2a9d6f;--line:#dcd8cc}
+body{font-family:'Atkinson Hyperlegible',system-ui,sans-serif;background:var(--chalk);color:var(--ink)}
+h1,h2,h3,h4,h5,.brand{font-family:'Bricolage Grotesque',system-ui,sans-serif;font-weight:800}
+.topbar{background:var(--ink);color:#fff}
+.brand{color:#fff;text-decoration:none;font-size:1.25rem}.brand b{color:var(--pencil)}
+.tabs{overflow-x:auto;white-space:nowrap;background:#fff;border-bottom:1px solid var(--line)}
+.tabs button{border:0;background:none;padding:.8rem 1rem;color:var(--ink);font-weight:700;border-bottom:3px solid transparent}
+.tabs button.on{border-color:var(--pencil)}
+.panel{background:#fff;border:1px solid var(--line);border-radius:.5rem}
+.t-tarea{--c:var(--tarea)}.t-examen{--c:var(--examen)}.t-proyecto{--c:var(--proyecto)}
+.act{border-left:6px solid var(--c);padding:.75rem 1rem}
+.act.done{opacity:.55}.act.done .tt{text-decoration:line-through}
+.tag{background:var(--c);color:#fff;border-radius:.25rem;padding:.1rem .5rem;font-size:.8rem}
+.stat{font-family:'Bricolage Grotesque';font-size:2rem;line-height:1}
+.btn-pencil{background:var(--pencil);border-color:var(--pencil);color:var(--ink);font-weight:700}
+.btn-pencil:hover{background:#d9a304;color:var(--ink)}
+.login-side{background:var(--ink);color:#fff}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--line);border:1px solid var(--line)}
+.cal div{background:#fff;min-height:84px;padding:.25rem;font-size:.75rem;overflow:hidden}
+.cal .h{min-height:0;font-weight:700;text-align:center;background:var(--chalk)}
+.cal .today{background:#fff6d6}.cal .o{background:#faf9f5;color:#aaa}
+.cal .ev{display:block;background:var(--c);color:#fff;border-radius:3px;padding:0 .25rem;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat{height:340px;overflow-y:auto;background:var(--chalk)}
+.msg{max-width:80%;padding:.4rem .7rem;border-radius:.6rem;margin:.3rem;background:#fff;border:1px solid var(--line)}
+.msg.me{margin-left:auto;background:#fff1b8}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1050;overflow:auto;padding:1rem}.ov[hidden]{display:none}.tab-pane{display:none}.tab-pane.active{display:block}
+:focus-visible{outline:3px solid var(--pencil);outline-offset:2px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="ov" id="modal" hidden><div class="modal-dialog"><div class="modal-content" id="modalBody"></div></div></div>
+<div class="toast-container position-fixed bottom-0 end-0 p-3" id="toasts"></div>
+<script>
+/* ===== Datos (localStorage) ===== */
+const K='aulaunida_db',S='aulaunida_ses';let mem={};
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>Math.random().toString(36).slice(2,9);
+const iso=d=>d.toISOString().slice(0,10);
+const plus=n=>{const d=new Date();d.setDate(d.getDate()+n);return iso(d)};
+const diff=f=>{const t=new Date();t.setHours(0,0,0,0);return Math.round((new Date(f+'T00:00')-t)/864e5)};
+const fdate=f=>new Date(f+'T00:00').toLocaleDateString('es-SV',{weekday:'short',day:'numeric',month:'short'});
+function seed(){return{
+ users:[{id:'u1',nombre:'Administrador INCOA',email:'admin@incoa.edu.sv',pass:'admin123',rol:'administrador'},
+  {id:'u2',nombre:'Profa. Patricia Soriano',email:'profesor@incoa.edu.sv',pass:'profe123',rol:'profesor'},
+  {id:'u3',nombre:'Ana Gestora',email:'gestor@incoa.edu.sv',pass:'gestor123',rol:'gestor'},
+  {id:'u4',nombre:'Miguel Andrade',email:'estudiante@incoa.edu.sv',pass:'estu123',rol:'estudiante',amigos:['u5']},
+  {id:'u5',nombre:'Daniel Bernal',email:'daniel@incoa.edu.sv',pass:'estu123',rol:'estudiante',amigos:['u4']}],
+ acts:[{id:'a1',tipo:'tarea',titulo:'Guía de ejercicios de JavaScript',materia:'Desarrollo de Software',fecha:plus(1),desc:'Resolver los ejercicios 1 al 10.',owner:'u2',scope:'todos',done:{}},
+  {id:'a2',tipo:'examen',titulo:'Examen de Bootstrap 5',materia:'Desarrollo de Software',fecha:plus(4),desc:'Grid, componentes y utilidades.',owner:'u2',scope:'todos',done:{}},
+  {id:'a3',tipo:'proyecto',titulo:'Entrega del proyecto tecnológico',materia:'Proyecto tecnológico',fecha:plus(12),desc:'Plataforma de aprendizaje colaborativo.',owner:'u2',scope:'g1',done:{}},
+  {id:'a4',tipo:'tarea',titulo:'Informe de contabilidad',materia:'Contabilidad',fecha:plus(-1),desc:'',owner:'u4',scope:'personal',done:{}}],
+ groups:[{id:'g1',nombre:'Proyecto tecnológico 2°B',owner:'u4',miembros:['u4','u5']}],
+ msgs:[{id:'m1',gid:'g1',uid:'u5',text:'¿Quién revisa el diseño de la base de datos?',t:Date.now()-36e5}],
+ posts:[{id:'p1',uid:'u2',titulo:'Dudas sobre la entrega final',texto:'Escriban aquí sus preguntas sobre el proyecto.',t:Date.now()-864e5,replies:[]}],
+ subs:[],
+ mats:[{id:'t1',uid:'u2',titulo:'Documentación de Bootstrap 5',materia:'Desarrollo de Software',enlace:'https://getbootstrap.com/docs/5.3/',nota:'Referencia oficial.',t:Date.now()-864e5}]}}
+let db;try{db=JSON.parse(localStorage.getItem(K))}catch(e){}db=db||seed();
+db.subs=db.subs||[];db.users.forEach(u=>u.amigos=u.amigos||[]);db.groups.forEach(g=>g.miembros=g.miembros.filter(x=>db.users.some(u=>u.id===x&&u.rol==='estudiante')));
+const sv=()=>{try{localStorage.setItem(K,JSON.stringify(db));return true}catch(e){toast('No se pudo guardar: almacenamiento lleno.','danger');return false}};
+const ses={get(){try{return localStorage.getItem(S)}catch(e){return mem.s}},set(v){try{v?localStorage.setItem(S,v):localStorage.removeItem(S)}catch(e){mem.s=v}}};
+let me=null,view='dash',fT='todas',fE='todas',gSel=null,calM=new Date(),dm=null;
+const user=id=>db.users.find(u=>u.id===id);
+const nm=id=>esc(user(id)?.nombre||'Usuario eliminado');
+function toast(msg,kind='dark'){const e=document.createElement('div');e.className=`toast show align-items-center text-bg-${kind} border-0 mb-2`;e.setAttribute('role','alert');e.innerHTML=`<div class="d-flex"><div class="toast-body">${msg}</div><button class="btn-close btn-close-white me-2 m-auto" onclick="this.closest('.toast').remove()" aria-label="Cerrar"></button></div>`;$('#toasts').append(e);setTimeout(()=>e.remove(),6000)}
+const modal=()=>({show(){$('#modal').hidden=false},hide(){$('#modal').hidden=true}});
+const tab=k=>{['l','r'].forEach(x=>{$('#t'+x).classList.toggle('active',x===k);$('#b'+x).classList.toggle('active',x===k)})};
+window.addEventListener('error',e=>{try{toast('Ocurrió un error: '+esc(e.message),'danger')}catch(_){}});
+
+/* ===== Permisos y reglas ===== */
+const isMgr=()=>['administrador','gestor'].includes(me.rol);
+const isEst=()=>me.rol==='estudiante';
+const TABS={estudiante:[['dash','Inicio'],['acts','Mis actividades'],['cal','Calendario'],['amigos','Compañeros'],['grupos','Grupos y chat'],['foro','Foro'],['mats','Materiales']],
+ profesor:[['dash','Inicio'],['acts','Asignar y programar'],['entregas','Revisar entregas'],['cal','Calendario'],['mats','Materiales']],
+ gestor:[['dash','Inicio'],['acts','Actividades'],['cal','Calendario'],['mats','Materiales']],
+ administrador:[['dash','Inicio'],['acts','Actividades'],['entregas','Entregas'],['cal','Calendario'],['grupos','Grupos y chat'],['foro','Foro'],['mats','Materiales'],['users','Usuarios']]};
+const COL={administrador:'#5b1f2e',profesor:'#1f4a3a',gestor:'#3b3358',estudiante:'#1f2a44'};
+const myGroups=()=>db.groups.filter(g=>g.miembros.includes(me.id));
+const visible=a=>isMgr()||(me.rol==='profesor'?a.owner===me.id:(a.scope==='todos'||(a.scope==='personal'&&a.owner===me.id)||myGroups().some(g=>g.id===a.scope)));
+const canEdit=a=>isMgr()||a.owner===me.id;
+const pending=()=>db.acts.filter(a=>visible(a)&&(isEst()?!a.done[me.id]:diff(a.fecha)>=0));
+const alerts=()=>pending().filter(a=>diff(a.fecha)<=2).sort((a,b)=>a.fecha.localeCompare(b.fecha));
+function badge(f){const d=diff(f);return d<0?`<span class="badge text-bg-danger">Vencida hace ${-d} d</span>`:d===0?'<span class="badge text-bg-warning">Vence hoy</span>':d===1?'<span class="badge text-bg-warning">Vence mañana</span>':d<=7?`<span class="badge text-bg-info">En ${d} días</span>`:`<span class="badge text-bg-secondary">En ${d} días</span>`}
+
+/* ===== Sesión ===== */
+function login(e){e.preventDefault();const f=e.target,u=db.users.find(x=>x.email===f.email.value.trim().toLowerCase()&&x.pass===f.pass.value);
+ if(!u)return $('#lerr').textContent='Correo o contraseña incorrectos. Revísalos e inténtalo de nuevo.';
+ ses.set(u.id);start(u,true)}
+function registro(e){e.preventDefault();const f=e.target,em=f.email.value.trim().toLowerCase();
+ if(db.users.some(x=>x.email===em))return $('#rerr').textContent='Ese correo ya tiene una cuenta. Usa Ingresar.';
+ if(f.pass.value.length<6)return $('#rerr').textContent='La contraseña necesita al menos 6 caracteres.';
+ const u={id:uid(),nombre:f.nombre.value.trim(),email:em,pass:f.pass.value,rol:'estudiante',amigos:[]};db.users.push(u);sv();ses.set(u.id);start(u,true)}
+function start(u,first){me=u;view='dash';render();if(first){const n=alerts().length;if(n)toast(`Tienes ${n} actividad${n>1?'es':''} por vencer o vencida${n>1?'s':''}.`,'warning')}}
+function logout(){ses.set(null);me=null;render()}
+function fill(em,p){const f=$('#lf');f.email.value=em;f.pass.value=p}
+
+/* ===== Render principal ===== */
+function render(){const a=$('#app');if(!me){a.innerHTML=loginHTML();return}
+ const tabs=TABS[me.rol];if(!tabs.some(t=>t[0]===view))view='dash';
+ const n=alerts().length;
+ a.innerHTML=`<header class="topbar" style="background:${COL[me.rol]}"><div class="container d-flex align-items-center justify-content-between py-2 gap-2">
+ <a class="brand" href="#" onclick="go('dash');return false">Aula<b>Unida</b></a>
+ <div class="d-flex align-items-center gap-3"><button class="btn btn-sm btn-outline-light position-relative" onclick="go('dash')" aria-label="Recordatorios">🔔${n?`<span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">${n}</span>`:''}</button>
+ <span class="small d-none d-sm-inline">${esc(me.nombre)} · <em>${me.rol}</em></span><button class="btn btn-sm btn-pencil" onclick="logout()">Salir</button></div></div></header>
+ <nav class="tabs"><div class="container">${tabs.map(t=>`<button class="${view===t[0]?'on':''}" onclick="go('${t[0]}')">${t[1]}</button>`).join('')}</div></nav>
+ <main class="container py-4" id="main">${views[view]()}</main>
+ <footer class="container small text-secondary pb-4">Instituto Nacional de la Ciudad Obrera de Apopa (INCOA) · Proyecto tecnológico 2026</footer>`;}
+const go=v=>{view=v;render()};
+
+function loginHTML(){return`<div class="container-fluid"><div class="row min-vh-100">
+ <div class="col-lg-6 login-side d-flex flex-column justify-content-center p-5"><div class="brand fs-1">Aula<b>Unida</b></div>
+ <h1 class="display-6 mt-3">Todas tus tareas, exámenes y proyectos en un solo lugar.</h1>
+ <p class="lead mt-3">Organiza tus fechas, recibe recordatorios y trabaja con tus compañeros sin saltar entre aplicaciones.</p>
+ <p class="small opacity-75">Instituto Nacional de la Ciudad Obrera de Apopa · 2026</p></div>
+ <div class="col-lg-6 d-flex align-items-center justify-content-center p-4"><div style="max-width:400px;width:100%">
+ <ul class="nav nav-tabs mb-3"><li class="nav-item"><button type="button" id="bl" class="nav-link active" onclick="tab('l')">Ingresar</button></li><li class="nav-item"><button type="button" id="br" class="nav-link" onclick="tab('r')">Crear cuenta</button></li></ul>
+ <div class="tab-content"><div class="tab-pane active" id="tl"><form id="lf" onsubmit="login(event)">
+ <label class="form-label">Correo</label><input name="email" type="email" class="form-control mb-2" required>
+ <label class="form-label">Contraseña</label><input name="pass" type="password" class="form-control mb-2" required>
+ <div id="lerr" class="text-danger small mb-2" role="alert"></div><button class="btn btn-pencil w-100">Ingresar</button></form>
+ <p class="small mt-3 mb-1 text-secondary">Cuentas de prueba:</p><div class="d-flex flex-wrap gap-1">
+ ${[['Admin','admin@incoa.edu.sv','admin123'],['Profesor','profesor@incoa.edu.sv','profe123'],['Gestor','gestor@incoa.edu.sv','gestor123'],['Estudiante','estudiante@incoa.edu.sv','estu123']].map(x=>`<button type="button" class="btn btn-sm btn-outline-dark" onclick="fill('${x[1]}','${x[2]}')">${x[0]}</button>`).join('')}</div></div>
+ <div class="tab-pane" id="tr"><form onsubmit="registro(event)"><label class="form-label">Nombre completo</label><input name="nombre" class="form-control mb-2" required>
+ <label class="form-label">Correo</label><input name="email" type="email" class="form-control mb-2" required>
+ <label class="form-label">Contraseña</label><input name="pass" type="password" class="form-control mb-2" required>
+ <div id="rerr" class="text-danger small mb-2" role="alert"></div><button class="btn btn-pencil w-100">Crear cuenta de estudiante</button></form></div></div></div></div></div></div>`}
+
+/* ===== Vistas ===== */
+const views={dash,acts,cal,grupos,foro,mats,users,entregas,amigos};
+
+function dashEst(){const p=pending(),al=alerts(),all=db.acts.filter(visible),done=all.filter(a=>a.done[me.id]).length,pct=all.length?Math.round(done/all.length*100):0;
+ const cnt=t=>p.filter(a=>a.tipo===t).length;
+ return`<h2 class="mb-3">Hola, ${esc(me.nombre.split(' ')[0])}</h2>
+ ${al.length?`<div class="alert alert-warning" role="alert"><strong>Recordatorios (${al.length}):</strong><ul class="mb-0 mt-1">${al.map(a=>`<li>${esc(a.titulo)} — ${badge(a.fecha)}</li>`).join('')}</ul></div>`:'<div class="alert alert-success">No tienes entregas urgentes. Buen trabajo.</div>'}
+ <div class="row g-3 mb-4">${[['Tareas','tarea'],['Exámenes','examen'],['Proyectos','proyecto']].map(x=>`<div class="col-4"><div class="panel p-3 t-${x[1]}" style="border-top:5px solid var(--c)"><div class="stat">${cnt(x[1])}</div><div class="small">${x[0]} pendientes</div></div></div>`).join('')}</div>
+ <div class="panel p-3 mb-4"><div class="d-flex justify-content-between"><strong>Cumplimiento</strong><span>${done} de ${all.length} completadas</span></div><div class="progress mt-2" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar bg-success" style="width:${pct}%">${pct}%</div></div></div>
+ <div class="d-flex justify-content-between align-items-center mb-2"><h4 class="mb-0">Próximas entregas</h4><button class="btn btn-pencil btn-sm" onclick="actForm()">+ Nueva actividad</button></div>
+ ${p.length?p.sort((a,b)=>a.fecha.localeCompare(b.fecha)).slice(0,5).map(actRow).join(''):'<div class="panel p-4 text-center text-secondary">Sin pendientes. Crea una actividad para empezar.</div>'}`}
+
+function dash(){return isEst()?dashEst():dashStaff()}
+function pendSubs(){return db.subs.filter(s=>{const a=db.acts.find(x=>x.id===s.aid);return a&&visible(a)&&s.nota==null})}
+function dashStaff(){const l=db.acts.filter(visible),up=l.filter(a=>diff(a.fecha)>=0).sort((a,b)=>a.fecha.localeCompare(b.fecha)),al=alerts(),ps=pendSubs().length,R=me.rol;
+ const c=(n,t)=>`<div class="col-6 col-md-3"><div class="panel p-3" style="border-top:5px solid ${COL[R]}"><div class="stat">${n}</div><div class="small">${t}</div></div></div>`;
+ const n=r=>db.users.filter(u=>u.rol===r).length,ty=t=>l.filter(a=>a.tipo===t).length;
+ const cards=R==='administrador'?c(n('estudiante'),'Estudiantes')+c(n('profesor'),'Profesores')+c(n('gestor'),'Gestores')+c(n('administrador'),'Administradores')+c(l.length,'Actividades')+c(db.groups.length,'Grupos')+c(db.posts.length,'Temas del foro')+c(ps,'Entregas sin calificar')
+  :R==='profesor'?c(l.length,'Actividades asignadas')+c(ty('examen'),'Exámenes programados')+c(ps,'Entregas por revisar')+c(up.length,'Próximas fechas')
+  :c(ty('tarea'),'Tareas')+c(ty('examen'),'Exámenes')+c(ty('proyecto'),'Proyectos')+c(up.length,'Próximas fechas');
+ const txt={administrador:'Tienes control total: usuarios y roles, actividades, entregas, grupos, foro y materiales.',profesor:'Asigna tareas y proyectos, programa exámenes, revisa y califica las entregas de tus estudiantes.',gestor:'Crea, edita y elimina las tareas, exámenes y proyectos de toda la plataforma.'}[R];
+ return`<h2>Panel ${R==='administrador'?'del administrador':R==='profesor'?'del profesor':'del gestor'}</h2><p class="text-secondary">${txt}</p>
+ ${al.length?`<div class="alert alert-warning" role="alert"><strong>Vencen pronto (${al.length}):</strong><ul class="mb-0 mt-1">${al.map(a=>`<li>${esc(a.titulo)} — ${badge(a.fecha)}</li>`).join('')}</ul></div>`:''}
+ <div class="row g-3 mb-4">${cards}</div>
+ <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2"><h4 class="mb-0">Próximas fechas</h4><div class="d-flex gap-2">${(R==='profesor'||R==='administrador')?'<button class="btn btn-outline-dark btn-sm" onclick="go(\'entregas\')">Revisar entregas</button>':''}<button class="btn btn-pencil btn-sm" onclick="actForm()">+ ${R==='gestor'?'Nueva actividad':'Asignar actividad'}</button></div></div>
+ ${up.length?up.slice(0,6).map(actRow).join(''):'<div class="panel p-4 text-center text-secondary">No hay fechas próximas. Crea una actividad.</div>'}`}
+
+function actRow(a){const est=isEst(),d=est&&!!a.done[me.id],g=db.groups.find(x=>x.id===a.scope),deliv=est&&a.tipo!=='examen'&&a.owner!==me.id,sub=db.subs.find(s=>s.aid===a.id&&s.uid===me.id),ns=db.subs.filter(s=>s.aid===a.id).length;
+ return`<div class="panel act t-${a.tipo} mb-2 ${d?'done':''}"><div class="d-flex gap-2 align-items-start flex-wrap">
+ ${est&&!deliv?`<input type="checkbox" class="form-check-input mt-2" ${d?'checked':''} onchange="toggle('${a.id}')" aria-label="Marcar como completada">`:''}
+ <div class="flex-grow-1"><div class="tt fw-bold">${esc(a.titulo)}</div>
+ <div class="small text-secondary">${esc(a.materia||'Sin materia')} · ${fdate(a.fecha)} · ${a.scope==='personal'?'Personal':a.scope==='todos'?'Para todos':esc(g?.nombre||'Grupo')} · por ${nm(a.owner)}</div>
+ ${a.desc?`<div class="small mt-1">${esc(a.desc)}</div>`:''}
+ ${!est&&a.tipo!=='examen'&&a.scope!=='personal'?`<div class="small mt-1"><b>${ns}</b> entrega${ns===1?'':'s'} recibida${ns===1?'':'s'}</div>`:''}
+ ${sub?.coment?`<div class="small mt-1">Comentario del profesor: ${esc(sub.coment)}</div>`:''}</div>
+ <div class="text-end"><span class="tag">${a.tipo}</span><div class="mt-1">${est&&d?`<span class="badge text-bg-success">${deliv?'Entregada':'Completada'}</span>`:badge(a.fecha)}</div>
+ ${sub&&sub.nota!=null?`<div class="small fw-bold">Nota: ${sub.nota}</div>`:''}
+ ${deliv?`<button class="btn btn-sm btn-pencil mt-1" onclick="subForm('${a.id}')">${sub?'Reentregar':'Entregar tarea'}</button>`:''}
+ ${canEdit(a)?`<div class="mt-1"><button class="btn btn-sm btn-link p-0 me-2" onclick="actForm('${a.id}')">Editar</button><button class="btn btn-sm btn-link text-danger p-0" onclick="delAct('${a.id}')">Eliminar</button></div>`:''}</div></div></div>`}
+
+function acts(){let l=db.acts.filter(visible);if(fT!=='todas')l=l.filter(a=>a.tipo===fT);
+ if(isEst()&&fE==='pendientes')l=l.filter(a=>!a.done[me.id]);if(isEst()&&fE==='completadas')l=l.filter(a=>a.done[me.id]);
+ l.sort((a,b)=>a.fecha.localeCompare(b.fecha));
+ const sel=(v,c,o)=>`<select class="form-select form-select-sm w-auto" onchange="${c}=this.value;render()">${o.map(x=>`<option ${x===v?'selected':''}>${x}</option>`).join('')}</select>`;
+ return`<div class="d-flex flex-wrap gap-2 justify-content-between mb-3"><h2 class="mb-0">${TABS[me.rol].find(t=>t[0]==='acts')[1]}</h2><div class="d-flex gap-2 flex-wrap">
+ ${sel(fT,'fT',['todas','tarea','examen','proyecto'])}${isEst()?sel(fE,'fE',['todas','pendientes','completadas']):''}<button class="btn btn-pencil btn-sm" onclick="actForm()">${isEst()?'+ Nueva actividad':'+ Asignar actividad'}</button></div></div>
+ ${l.length?l.map(actRow).join(''):'<div class="panel p-4 text-center text-secondary">No hay actividades con este filtro.</div>'}`}
+
+function actForm(id){const a=db.acts.find(x=>x.id===id)||{tipo:'tarea',titulo:'',materia:'',fecha:plus(1),desc:'',scope:isEst()?'personal':'todos'};
+ const sc=isEst()?[['personal','Solo yo'],...myGroups().map(g=>[g.id,'Grupo: '+g.nombre])]:[['todos','Todos los estudiantes'],...db.groups.map(g=>[g.id,'Grupo: '+g.nombre]),...(me.rol==='profesor'?[]:[['personal','Solo yo']])];
+ $('#modalBody').innerHTML=`<form onsubmit="saveAct(event,'${id||''}')"><div class="modal-header"><h5 class="modal-title">${id?'Editar':'Nueva'} actividad</h5><button type="button" class="btn-close" onclick="modal().hide()" aria-label="Cerrar"></button></div>
+ <div class="modal-body"><div class="row g-2"><div class="col-6"><label class="form-label">Tipo</label><select name="tipo" class="form-select">${['tarea','examen','proyecto'].map(t=>`<option ${a.tipo===t?'selected':''}>${t}</option>`).join('')}</select></div>
+ <div class="col-6"><label class="form-label">Fecha límite</label><input name="fecha" type="date" class="form-control" value="${a.fecha}" required></div>
+ <div class="col-12"><label class="form-label">Título</label><input name="titulo" class="form-control" value="${esc(a.titulo)}" required></div>
+ <div class="col-12"><label class="form-label">Materia</label><input name="materia" class="form-control" value="${esc(a.materia)}"></div>
+ <div class="col-12"><label class="form-label">Visible para</label><select name="scope" class="form-select">${sc.map(s=>`<option value="${s[0]}" ${a.scope===s[0]?'selected':''}>${esc(s[1])}</option>`).join('')}</select></div>
+ <div class="col-12"><label class="form-label">Descripción</label><textarea name="desc" class="form-control" rows="3">${esc(a.desc)}</textarea></div></div></div>
+ <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" onclick="modal().hide()">Cancelar</button><button class="btn btn-pencil">Guardar actividad</button></div></form>`;modal().show()}
+function saveAct(e,id){e.preventDefault();const f=e.target,d={tipo:f.tipo.value,titulo:f.titulo.value.trim(),materia:f.materia.value.trim(),fecha:f.fecha.value,desc:f.desc.value.trim(),scope:f.scope.value};
+ if(id)Object.assign(db.acts.find(x=>x.id===id),d);else db.acts.push({id:uid(),owner:me.id,done:{},...d});
+ sv();modal().hide();render();toast(id?'Actividad actualizada':'Actividad guardada','success')}
+function delAct(id){if(!confirm('¿Eliminar esta actividad? No se puede deshacer.'))return;db.acts=db.acts.filter(a=>a.id!==id);sv();render();toast('Actividad eliminada')}
+function toggle(id){const a=db.acts.find(x=>x.id===id);a.done[me.id]=!a.done[me.id];sv();render()}
+
+function cal(){const y=calM.getFullYear(),m=calM.getMonth(),first=new Date(y,m,1),start=new Date(y,m,1-first.getDay()),td=iso(new Date()),l=db.acts.filter(visible);let c='';
+ ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'].forEach(d=>c+=`<div class="h">${d}</div>`);
+ for(let i=0;i<42;i++){const d=new Date(start);d.setDate(start.getDate()+i);const k=new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,10);
+  c+=`<div class="${d.getMonth()!==m?'o':''} ${k===td?'today':''}"><b>${d.getDate()}</b>${l.filter(a=>a.fecha===k).map(a=>`<span class="ev t-${a.tipo}" title="${esc(a.titulo)}">${esc(a.titulo)}</span>`).join('')}</div>`}
+ return`<div class="d-flex justify-content-between align-items-center mb-3"><h2 class="mb-0 text-capitalize">${first.toLocaleDateString('es-SV',{month:'long',year:'numeric'})}</h2>
+ <div class="btn-group"><button class="btn btn-outline-dark btn-sm" onclick="calM=new Date(${y},${m-1},1);render()">‹</button><button class="btn btn-outline-dark btn-sm" onclick="calM=new Date();render()">Hoy</button><button class="btn btn-outline-dark btn-sm" onclick="calM=new Date(${y},${m+1},1);render()">›</button></div></div>
+ <div class="mb-2 small"><span class="tag t-tarea">tarea</span> <span class="tag t-examen">examen</span> <span class="tag t-proyecto">proyecto</span></div><div class="cal">${c}</div>`}
+
+function grupos(){const g=db.groups.find(x=>x.id===gSel)||myGroups()[0]||db.groups[0];if(g)gSel=g.id;
+ const mem=g?.miembros.includes(me.id);
+ return`<div class="row g-3"><div class="col-md-4"><div class="d-flex justify-content-between mb-2"><h4 class="mb-0">Grupos</h4>${isEst()?'<button class="btn btn-pencil btn-sm" onclick="groupForm()">+ Crear grupo</button>':''}</div>
+ <div class="list-group">${db.groups.map(x=>`<button class="list-group-item list-group-item-action ${x.id===gSel?'active':''}" onclick="gSel='${x.id}';render()">${esc(x.nombre)}<div class="small">${x.miembros.length} miembro${x.miembros.length>1?'s':''}${x.miembros.includes(me.id)?' · eres parte':''}</div></button>`).join('')||'<div class="text-secondary">Aún no hay grupos. Crea el primero.</div>'}</div></div>
+ <div class="col-md-8">${g?`<div class="panel"><div class="p-3 border-bottom d-flex justify-content-between align-items-start gap-2"><div><h5 class="mb-0">${esc(g.nombre)}</h5><div class="small text-secondary">${g.miembros.map(nm).join(', ')}</div></div>
+ <div>${isEst()?`<button class="btn btn-sm ${mem?'btn-outline-danger':'btn-pencil'}" onclick="joinG('${g.id}')">${mem?'Salir del grupo':'Unirme'}</button>`:''}${(me.rol==='administrador'||g.owner===me.id)?`<button class="btn btn-sm btn-outline-danger ms-1" onclick="delG('${g.id}')">Eliminar grupo</button>`:''}</div></div>
+ <div class="chat p-2" id="chat">${db.msgs.filter(m=>m.gid===g.id).map(m=>`<div class="msg ${m.uid===me.id?'me':''}"><div class="small fw-bold">${nm(m.uid)}</div>${esc(m.text)}<div class="small text-secondary">${new Date(m.t).toLocaleTimeString('es-SV',{hour:'2-digit',minute:'2-digit'})}</div></div>`).join('')||'<div class="text-center text-secondary p-4">Sin mensajes. Escribe el primero.</div>'}</div>
+ ${mem?`<form class="p-2 d-flex gap-2 border-top" onsubmit="send(event,'${g.id}')"><input name="t" class="form-control" placeholder="Escribe un mensaje" required autocomplete="off"><button class="btn btn-pencil">Enviar</button></form>`:`<div class="p-3 text-secondary border-top">${isEst()?'Únete al grupo para escribir.':'Vista de moderación: solo los estudiantes escriben en los grupos.'}</div>`}</div>`:'<div class="panel p-4 text-secondary">Crea un grupo para empezar a colaborar.</div>'}</div></div>`}
+function groupForm(){$('#modalBody').innerHTML=`<form onsubmit="saveG(event)"><div class="modal-header"><h5 class="modal-title">Crear grupo</h5><button type="button" class="btn-close" onclick="modal().hide()" aria-label="Cerrar"></button></div><div class="modal-body"><label class="form-label">Nombre del grupo</label><input name="n" class="form-control" required></div><div class="modal-footer"><button class="btn btn-pencil">Crear grupo</button></div></form>`;modal().show()}
+function saveG(e){e.preventDefault();const g={id:uid(),nombre:e.target.n.value.trim(),owner:me.id,miembros:[me.id]};db.groups.push(g);gSel=g.id;sv();modal().hide();render()}
+function joinG(id){const g=db.groups.find(x=>x.id===id);g.miembros=g.miembros.includes(me.id)?g.miembros.filter(x=>x!==me.id):[...g.miembros,me.id];sv();render()}
+function send(e,gid){e.preventDefault();db.msgs.push({id:uid(),gid,uid:me.id,text:e.target.t.value.trim(),t:Date.now()});sv();render();const c=$('#chat');if(c)c.scrollTop=c.scrollHeight}
+
+function foro(){return`<div class="d-flex justify-content-between mb-3"><h2 class="mb-0">Foro de discusión</h2><button class="btn btn-pencil btn-sm" onclick="postForm()">+ Nuevo tema</button></div>
+ ${[...db.posts].sort((a,b)=>b.t-a.t).map(p=>`<div class="panel p-3 mb-3"><h5>${esc(p.titulo)}</h5><div class="small text-secondary mb-2">${nm(p.uid)} · ${new Date(p.t).toLocaleDateString('es-SV')}</div><p>${esc(p.texto)}</p>
+ ${p.replies.map(r=>`<div class="border-start border-3 ps-2 mb-2 small"><b>${nm(r.uid)}:</b> ${esc(r.text)}</div>`).join('')}
+ <form class="d-flex gap-2 mt-2" onsubmit="reply(event,'${p.id}')"><input name="t" class="form-control form-control-sm" placeholder="Responder" required><button class="btn btn-sm btn-outline-dark">Responder</button></form>
+ ${(isMgr()||p.uid===me.id)?`<button class="btn btn-sm btn-link text-danger p-0 mt-2" onclick="delPost('${p.id}')">Eliminar tema</button>`:''}</div>`).join('')||'<div class="panel p-4 text-center text-secondary">Aún no hay temas. Abre la conversación.</div>'}`}
+function postForm(){$('#modalBody').innerHTML=`<form onsubmit="savePost(event)"><div class="modal-header"><h5 class="modal-title">Nuevo tema</h5><button type="button" class="btn-close" onclick="modal().hide()" aria-label="Cerrar"></button></div><div class="modal-body"><label class="form-label">Título</label><input name="a" class="form-control mb-2" required><label class="form-label">Mensaje</label><textarea name="b" class="form-control" rows="4" required></textarea></div><div class="modal-footer"><button class="btn btn-pencil">Publicar tema</button></div></form>`;modal().show()}
+function savePost(e){e.preventDefault();db.posts.push({id:uid(),uid:me.id,titulo:e.target.a.value.trim(),texto:e.target.b.value.trim(),t:Date.now(),replies:[]});sv();modal().hide();render()}
+function reply(e,id){e.preventDefault();db.posts.find(p=>p.id===id).replies.push({uid:me.id,text:e.target.t.value.trim()});sv();render()}
+function delPost(id){if(confirm('¿Eliminar este tema y sus respuestas?')){db.posts=db.posts.filter(p=>p.id!==id);sv();render()}}
+
+function mats(){return`<div class="d-flex justify-content-between mb-3"><h2 class="mb-0">Materiales compartidos</h2><button class="btn btn-pencil btn-sm" onclick="matForm()">+ Compartir material</button></div>
+ <div class="row g-3">${[...db.mats].sort((a,b)=>b.t-a.t).map(m=>`<div class="col-md-6"><div class="panel p-3 h-100"><h5>${esc(m.titulo)}</h5><div class="small text-secondary mb-2">${esc(m.materia||'General')} · compartido por ${nm(m.uid)}</div>${m.nota?`<p class="small">${esc(m.nota)}</p>`:''}
+ ${m.enlace?`<a class="btn btn-sm btn-outline-dark me-1" href="${esc(m.enlace)}" target="_blank" rel="noopener">Abrir enlace</a>`:''}${m.file?`<a class="btn btn-sm btn-outline-dark me-1" href="${m.file.data}" download="${esc(m.file.name)}">Descargar ${esc(m.file.name)}</a>`:''}
+ ${(isMgr()||m.uid===me.id)?`<button class="btn btn-sm btn-link text-danger" onclick="delMat('${m.id}')">Eliminar</button>`:''}</div></div>`).join('')||'<div class="panel p-4 text-center text-secondary">Aún no hay materiales. Comparte el primero.</div>'}</div>`}
+function matForm(){$('#modalBody').innerHTML=`<form onsubmit="saveMat(event)"><div class="modal-header"><h5 class="modal-title">Compartir material</h5><button type="button" class="btn-close" onclick="modal().hide()" aria-label="Cerrar"></button></div><div class="modal-body">
+ <label class="form-label">Título</label><input name="a" class="form-control mb-2" required><label class="form-label">Materia</label><input name="m" class="form-control mb-2">
+ <label class="form-label">Enlace (opcional)</label><input name="l" type="url" class="form-control mb-2" placeholder="https://"><label class="form-label">Archivo (opcional, máx. 300 KB)</label><input name="f" type="file" class="form-control mb-2">
+ <label class="form-label">Nota</label><textarea name="n" class="form-control" rows="2"></textarea><div id="merr" class="text-danger small mt-2" role="alert"></div></div><div class="modal-footer"><button class="btn btn-pencil">Compartir</button></div></form>`;modal().show()}
+function saveMat(e){e.preventDefault();const f=e.target,file=f.f.files[0];
+ const done=data=>{db.mats.push({id:uid(),uid:me.id,titulo:f.a.value.trim(),materia:f.m.value.trim(),enlace:f.l.value.trim(),nota:f.n.value.trim(),t:Date.now(),file:data});if(sv()){modal().hide();render();toast('Material compartido','success')}else db.mats.pop()};
+ if(!file)return done(null);if(file.size>307200)return $('#merr').textContent='El archivo pesa más de 300 KB. Elige uno más liviano o comparte un enlace.';
+ const r=new FileReader();r.onload=()=>done({name:file.name,data:r.result});r.readAsDataURL(file)}
+function delMat(id){if(confirm('¿Eliminar este material?')){db.mats=db.mats.filter(m=>m.id!==id);sv();render()}}
+
+function users(){return`<div class="d-flex justify-content-between mb-3"><h2 class="mb-0">Gestión de usuarios y roles</h2><button class="btn btn-pencil btn-sm" onclick="userForm()">+ Crear usuario</button></div><div class="panel table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th></th></tr></thead><tbody>
+ ${db.users.map(u=>`<tr><td>${esc(u.nombre)}</td><td>${esc(u.email)}</td><td><select class="form-select form-select-sm" ${u.id===me.id?'disabled':''} onchange="setRole('${u.id}',this.value)">${['administrador','profesor','estudiante','gestor'].map(r=>`<option ${u.rol===r?'selected':''}>${r}</option>`).join('')}</select></td>
+ <td>${u.id!==me.id?`<button class="btn btn-sm btn-link text-danger" onclick="delUser('${u.id}')">Eliminar</button>`:'<span class="small text-secondary">Tú</span>'}</td></tr>`).join('')}</tbody></table></div>`}
+function setRole(id,r){user(id).rol=r;sv();toast('Rol actualizado','success')}
+function delUser(id){if(!confirm('¿Eliminar este usuario?'))return;db.users=db.users.filter(u=>u.id!==id);db.groups.forEach(g=>g.miembros=g.miembros.filter(x=>x!==id));sv();render()}
+
+/* ===== Entregas (estudiante) ===== */
+function subForm(id){const a=db.acts.find(x=>x.id===id),s=db.subs.find(x=>x.aid===id&&x.uid===me.id);
+ $('#modalBody').innerHTML=`<form onsubmit="saveSub(event,'${id}')"><div class="modal-header"><h5 class="modal-title">Entregar: ${esc(a.titulo)}</h5><button type="button" class="btn-close" onclick="modal().hide()" aria-label="Cerrar"></button></div><div class="modal-body">
+ <label class="form-label">Comentario o respuesta</label><textarea name="t" class="form-control mb-2" rows="4">${esc(s?.text||'')}</textarea>
+ <label class="form-label">Archivo (opcional, máx. 300 KB)</label><input name="f" type="file" class="form-control"><div id="serr" class="text-danger small mt-2" role="alert"></div></div>
+ <div class="modal-footer"><button class="btn btn-pencil">Enviar entrega</button></div></form>`;modal().show()}
+function saveSub(e,id){e.preventDefault();const f=e.target,file=f.f.files[0],txt=f.t.value.trim();
+ if(!txt&&!file)return $('#serr').textContent='Escribe una respuesta o adjunta un archivo para entregar.';
+ if(file&&file.size>307200)return $('#serr').textContent='El archivo pesa más de 300 KB. Elige uno más liviano.';
+ const fin=data=>{let s=db.subs.find(x=>x.aid===id&&x.uid===me.id);if(s)Object.assign(s,{text:txt,t:Date.now(),nota:null,coment:'',file:data||s.file});else db.subs.push({id:uid(),aid:id,uid:me.id,text:txt,file:data,t:Date.now(),nota:null,coment:''});
+  db.acts.find(a=>a.id===id).done[me.id]=true;if(sv()){modal().hide();render();toast('Tarea entregada','success')}};
+ if(!file)return fin(null);const rd=new FileReader();rd.onload=()=>fin({name:file.name,data:rd.result});rd.readAsDataURL(file)}
+
+/* ===== Revisar entregas (profesor / admin) ===== */
+function entregas(){const l=db.acts.filter(a=>visible(a)&&a.tipo!=='examen'&&a.scope!=='personal').sort((a,b)=>a.fecha.localeCompare(b.fecha));
+ const stu=a=>{const g=db.groups.find(x=>x.id===a.scope);return db.users.filter(u=>u.rol==='estudiante'&&(!g||g.miembros.includes(u.id)))};
+ return`<h2 class="mb-3">Revisar entregas</h2>${l.map(a=>{const st=stu(a),ss=db.subs.filter(s=>s.aid===a.id);
+ return`<details class="panel mb-2 t-${a.tipo}" ${ss.some(s=>s.nota==null)?'open':''}><summary class="p-3 act" style="cursor:pointer"><b>${esc(a.titulo)}</b> <span class="tag">${a.tipo}</span> <span class="small text-secondary">${fdate(a.fecha)} · ${ss.length} de ${st.length} entregas</span></summary>
+ <div class="table-responsive"><table class="table align-middle mb-0 small"><thead><tr><th>Estudiante</th><th>Entrega</th><th style="width:90px">Nota (0-10)</th><th>Comentario</th><th></th></tr></thead><tbody>
+ ${st.map(u=>{const s=ss.find(x=>x.uid===u.id);return s?`<tr><td>${esc(u.nombre)}</td><td>${new Date(s.t)>new Date(a.fecha+'T23:59:59')?'<span class="badge text-bg-warning">Tarde</span> ':''}${esc(s.text)}${s.file?` <a href="${s.file.data}" download="${esc(s.file.name)}">${esc(s.file.name)}</a>`:''}</td>
+ <td><input id="n_${s.id}" type="number" min="0" max="10" step="0.1" class="form-control form-control-sm" value="${s.nota??''}"></td><td><input id="c_${s.id}" class="form-control form-control-sm" value="${esc(s.coment)}"></td><td><button class="btn btn-sm btn-pencil" onclick="grade('${s.id}')">Calificar</button></td></tr>`
+ :`<tr><td>${esc(u.nombre)}</td><td colspan="4" class="text-secondary">Sin entrega</td></tr>`}).join('')||'<tr><td colspan="5" class="text-secondary">No hay estudiantes para esta actividad.</td></tr>'}</tbody></table></div></details>`}).join('')||'<div class="panel p-4 text-center text-secondary">Aún no hay tareas o proyectos para revisar. Asigna una actividad primero.</div>'}`}
+function grade(id){const s=db.subs.find(x=>x.id===id),n=parseFloat($('#n_'+id).value);if(isNaN(n)||n<0||n>10)return toast('La nota debe estar entre 0 y 10.','danger');s.nota=n;s.coment=$('#c_'+id).value.trim();sv();render();toast('Calificación guardada','success')}
+
+/* ===== Compañeros y mensajes directos (estudiante) ===== */
+function amigos(){const others=db.users.filter(u=>u.rol==='estudiante'&&u.id!==me.id),fr=me.amigos,peer=dm&&fr.includes(dm)?user(dm):null,key=peer?'dm:'+[me.id,peer.id].sort().join('_'):'';
+ return`<div class="row g-3"><div class="col-md-5"><h4>Mis compañeros</h4><div class="list-group">${others.map(u=>`<div class="list-group-item d-flex justify-content-between align-items-center gap-2"><div><b>${esc(u.nombre)}</b><div class="small text-secondary">${fr.includes(u.id)?'Amigo':'Compañero'}</div></div>
+ <div class="btn-group btn-group-sm">${fr.includes(u.id)?`<button class="btn btn-outline-dark" onclick="dm='${u.id}';render()">Mensaje</button><button class="btn btn-outline-danger" onclick="friend('${u.id}')">Quitar</button>`:`<button class="btn btn-pencil" onclick="friend('${u.id}')">Agregar amigo</button>`}</div></div>`).join('')||'<div class="text-secondary p-2">Aún no hay otros estudiantes registrados.</div>'}</div></div>
+ <div class="col-md-7">${peer?`<div class="panel"><div class="p-3 border-bottom"><h5 class="mb-0">${esc(peer.nombre)}</h5></div><div class="chat p-2">${db.msgs.filter(m=>m.gid===key).map(m=>`<div class="msg ${m.uid===me.id?'me':''}">${esc(m.text)}<div class="small text-secondary">${new Date(m.t).toLocaleTimeString('es-SV',{hour:'2-digit',minute:'2-digit'})}</div></div>`).join('')||'<div class="text-center text-secondary p-4">Sin mensajes. Saluda a tu compañero.</div>'}</div>
+ <form class="p-2 d-flex gap-2 border-top" onsubmit="send(event,'${key}')"><input name="t" class="form-control" placeholder="Escribe un mensaje" required autocomplete="off"><button class="btn btn-pencil">Enviar</button></form></div>`:'<div class="panel p-4 text-secondary">Agrega un amigo y pulsa "Mensaje" para chatear en privado.</div>'}</div></div>`}
+function friend(id){const o=user(id);if(me.amigos.includes(id)){me.amigos=me.amigos.filter(x=>x!==id);o.amigos=o.amigos.filter(x=>x!==me.id);if(dm===id)dm=null}else{me.amigos.push(id);o.amigos.push(me.id)}sv();render()}
+function delG(id){if(!confirm('¿Eliminar este grupo y su chat?'))return;db.groups=db.groups.filter(g=>g.id!==id);db.msgs=db.msgs.filter(m=>m.gid!==id);gSel=null;sv();render()}
+
+/* ===== Crear usuario (administrador) ===== */
+function userForm(){$('#modalBody').innerHTML=`<form onsubmit="saveUser(event)"><div class="modal-header"><h5 class="modal-title">Crear usuario</h5><button type="button" class="btn-close" onclick="modal().hide()" aria-label="Cerrar"></button></div><div class="modal-body">
+ <label class="form-label">Nombre completo</label><input name="n" class="form-control mb-2" required><label class="form-label">Correo</label><input name="e" type="email" class="form-control mb-2" required>
+ <label class="form-label">Contraseña (mín. 6)</label><input name="p" class="form-control mb-2" minlength="6" required><label class="form-label">Rol</label><select name="r" class="form-select">${['estudiante','profesor','gestor','administrador'].map(x=>`<option>${x}</option>`).join('')}</select>
+ <div id="uerr" class="text-danger small mt-2" role="alert"></div></div><div class="modal-footer"><button class="btn btn-pencil">Crear usuario</button></div></form>`;modal().show()}
+function saveUser(e){e.preventDefault();const f=e.target,em=f.e.value.trim().toLowerCase();if(db.users.some(u=>u.email===em))return $('#uerr').textContent='Ese correo ya tiene una cuenta.';
+ db.users.push({id:uid(),nombre:f.n.value.trim(),email:em,pass:f.p.value,rol:f.r.value,amigos:[]});sv();modal().hide();render();toast('Usuario creado','success')}
+
+/* ===== Inicio ===== */
+const sid=ses.get();const u0=sid&&user(sid);if(u0)start(u0,true);else render();
+</script>
+</body>
+</html>
