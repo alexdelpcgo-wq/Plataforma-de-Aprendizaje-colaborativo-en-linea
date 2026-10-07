@@ -1,6 +1,5 @@
 {
     "version": "0.2.0",
-    "configurations": [
         {
             "type": "chrome",
             "request": "launch",
@@ -13,5 +12,4 @@
             "name": "AulaUnida (Microsoft Edge)",
             "file": "index.html"
         }
-    ]
 }
