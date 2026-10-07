@@ -1,15 +1,31 @@
 {
-    "version": "0.2.0",
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
         {
-            "type": "chrome",
-            "request": "launch",
-            "name": "AulaUnida(Google Chrome)",
-            "file": "index.html"
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
         },
         {
-            "type": "msedge",
-            "request": "launch",
-            "name": "AulaUnida (Microsoft Edge)",
-            "file": "index.html"
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
         }
+      ]
+    }
+  ]
 }
