@@ -5,13 +5,13 @@
             "type": "chrome",
             "request": "launch",
             "name": "AulaUnida(Google Chrome)",
-            "file": "${workspaceFolder}/index.html"
+            "file": "index.html"
         },
         {
             "type": "msedge",
             "request": "launch",
             "name": "AulaUnida (Microsoft Edge)",
-            "file": "${workspaceFolder}/index.html"
+            "file": "index.html"
         }
     ]
 }
